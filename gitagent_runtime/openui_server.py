@@ -108,6 +108,12 @@ def get_clickhouse():
     return {"rows": _read_clickhouse()}
 
 
+@app.post("/api/reset")
+def reset():
+    open(STATE_LOG, "w").close()
+    return {"ok": True}
+
+
 @app.get("/api/summary")
 async def get_summary():
     events = _read_events()

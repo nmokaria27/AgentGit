@@ -36,6 +36,12 @@
     padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
     background: #1c2128; border: 1px solid var(--border); transition: all .3s;
   }
+  #reset-btn {
+    padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    background: transparent; border: 1px solid var(--red); color: var(--red);
+    font-family: var(--font); cursor: pointer; transition: all .15s;
+  }
+  #reset-btn:hover { background: var(--red); color: #000; }
 
   /* ── Body layout ── */
   .body { flex: 1 1 0; min-height: 0; display: grid;
@@ -194,7 +200,10 @@
 
 <header>
   <div class="logo">GitAgent <span>/ live dashboard</span></div>
-  <div id="status-pill">⬤ connecting…</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div id="status-pill">⬤ connecting…</div>
+    <button id="reset-btn" onclick="resetDashboard()">Reset</button>
+  </div>
 </header>
 
 <div class="body">
@@ -428,6 +437,33 @@ function connect() {
     es.close();
     setTimeout(connect, 3000);
   };
+}
+
+// ── reset ──────────────────────────────────────────────────────────
+async function resetDashboard() {
+  if (!confirm('Clear all run data and reset the dashboard?')) return;
+  await fetch('/api/reset', { method: 'POST' }).catch(() => {});
+  // Clear UI immediately
+  const pill = document.getElementById('status-pill');
+  pill.textContent = '⬤ connecting…';
+  pill.style.color = 'var(--muted)';
+  pill.style.borderColor = 'var(--border)';
+  document.getElementById('thought-box').textContent = 'Waiting for agent to start…';
+  document.getElementById('thought-box').className = '';
+  document.getElementById('rollback-list').innerHTML = '<div class="no-data">No rollbacks yet</div>';
+  const panel  = document.getElementById('tab-steps');
+  const header = panel.querySelector('.tbl-head');
+  panel.innerHTML = '';
+  if (header) panel.appendChild(header);
+  panel.insertAdjacentHTML('beforeend', '<div class="no-data" id="steps-empty">No steps yet</div>');
+  document.getElementById('summary-body').className = 'placeholder';
+  document.getElementById('summary-body').textContent = 'Click "Generate Summary" to get an AI explanation of what happened each step.';
+  const chList = document.getElementById('ch-list');
+  chList.innerHTML = `<div class="ch-row ch-head">
+    <span class="ch-ts">Time</span><span class="ch-step">#</span>
+    <span class="ch-dec">Decision</span><span class="ch-thought">Thought</span></div>
+  <div class="no-data" id="ch-empty">No rows yet</div>`;
+  document.getElementById('ch-badge').textContent = '';
 }
 
 // ── boot ───────────────────────────────────────────────────────────
