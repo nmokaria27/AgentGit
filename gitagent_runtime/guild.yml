@@ -1,0 +1,21 @@
+# NOTE: guildai 0.9.0 uses the `imp` module removed in Python 3.13.
+# MLflow is used instead for experiment tracking — see main.py.
+#
+# To launch the MLflow UI:
+#   mlflow ui --port 5001
+#
+# The gitagent experiment and all run metrics are stored in ./mlruns/
+# Tracked per run: session_id, workspace, model, loop_detector flag,
+# step metrics (step, exit_code, rollback_count), and final step on done/max.
+
+- model: gitagent_runtime
+  description: Operational Runtime Pipeline for Autonomous Agent Controls
+  operations:
+    run_agent:
+      description: Track execution steps and evaluate hard rollback checkpoints
+      main: main
+      flags:
+        workspace_path:
+          description: Target path containing the mock project sandbox
+          type: string
+          default: ./mock_project

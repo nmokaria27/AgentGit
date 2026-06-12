@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitAgent — Live Dashboard</title>
+<style>
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --blue:    #58a6ff;
+    --green:   #3fb950;
+    --orange:  #f0883e;
+    --red:     #f85149;
+    --purple:  #bc8cff;
+    --font:    'SF Mono','Fira Code','Cascadia Code',monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font);
+         font-size: 13px; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo { font-size: 15px; font-weight: 700; letter-spacing: .5px; color: var(--blue); }
+  .logo span { color: var(--muted); font-weight: 400; }
+  #status-pill {
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    background: #1c2128; border: 1px solid var(--border); transition: all .3s;
+  }
+
+  /* ── Body layout ── */
+  .body { flex: 1 1 0; min-height: 0; display: grid;
+          grid-template-columns: 1fr 340px; }
+
+  /* ── Columns ── */
+  .left  { display: flex; flex-direction: column; min-height: 0;
+           border-right: 1px solid var(--border); overflow: hidden; }
+  .right { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+
+  /* ── Section chrome ── */
+  .sec-head {
+    flex: 0 0 auto;
+    padding: 7px 14px; font-size: 10px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+         background: var(--blue); }
+
+  /* ── Thought box ── */
+  .thought-wrap { flex: 0 0 160px; display: flex; flex-direction: column;
+                  border-bottom: 1px solid var(--border); }
+  #thought-box {
+    flex: 1 1 0; overflow-y: auto; padding: 12px 14px;
+    font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  }
+  #thought-box.thinking { color: var(--purple); }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    flex: 0 0 auto; display: flex; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .tab {
+    padding: 7px 16px; font-size: 11px; font-weight: 600; cursor: pointer;
+    border-bottom: 2px solid transparent; color: var(--muted);
+    transition: color .15s, border-color .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* ── Tab panels ── */
+  .tab-panels { flex: 1 1 0; min-height: 0; position: relative; }
+  .tab-panel { position: absolute; inset: 0; overflow-y: auto;
+               display: none; flex-direction: column; }
+  .tab-panel.active { display: flex; }
+
+  /* ── Step trace ── */
+  .step-row {
+    display: grid; grid-template-columns: 54px 44px 108px 44px 1fr;
+    align-items: start; gap: 0;
+    padding: 5px 14px; border-bottom: 1px solid #21262d;
+    transition: background .1s;
+  }
+  .step-row:hover { background: #1c2128; }
+  .step-row.is-rollback { background: rgba(240,136,62,.07); }
+  .step-row.is-rollback .ev { color: var(--orange); }
+  .step-row.is-success  { background: rgba(63,185,80,.07); }
+  .step-row.is-success  .ev { color: var(--green); }
+  .col-ts    { color: var(--muted); font-size: 10px; padding-top: 2px; }
+  .col-step  { color: var(--blue); text-align: center; padding-top: 2px; }
+  .col-ev    { font-size: 10px; padding-top: 2px; }
+  .col-ec    { text-align: center; padding-top: 2px; }
+  .ec-ok     { color: var(--green); }
+  .ec-bad    { color: var(--red); }
+  /* thought column: scrollable inside its cell */
+  .col-thought {
+    font-size: 11px; color: var(--muted);
+    max-height: 80px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word; line-height: 1.5;
+    scrollbar-width: thin;
+  }
+  .tbl-head { color: var(--muted); font-size: 10px; letter-spacing: .5px;
+              text-transform: uppercase; background: var(--surface);
+              position: sticky; top: 0; z-index: 1;
+              border-bottom: 1px solid var(--border) !important; }
+  .no-data { padding: 18px; color: var(--muted); font-size: 12px; text-align: center; }
+
+  /* ── AI Summary tab ── */
+  #summary-body {
+    flex: 1 1 0; overflow-y: auto; padding: 14px;
+    font-size: 12px; line-height: 1.7; white-space: pre-wrap;
+    word-break: break-word; color: var(--text);
+  }
+  #summary-body.placeholder { color: var(--muted); }
+  #summary-footer {
+    flex: 0 0 auto; padding: 10px 14px; border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  #summarize-btn {
+    padding: 6px 16px; border-radius: 6px; border: 1px solid var(--blue);
+    background: transparent; color: var(--blue); font-family: var(--font);
+    font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  #summarize-btn:hover:not(:disabled) { background: var(--blue); color: #000; }
+  #summarize-btn:disabled { opacity: .4; cursor: default; }
+
+  /* ── Right panel ── */
+  .rb-wrap { flex: 0 0 auto; max-height: 220px; display: flex;
+             flex-direction: column; border-bottom: 1px solid var(--border); }
+  #rollback-list { flex: 1 1 0; overflow-y: auto; }
+  .rb-item { padding: 8px 14px; border-bottom: 1px solid #21262d; }
+  .rb-meta { display: flex; gap: 10px; font-size: 11px; margin-bottom: 3px; }
+  .rb-ts   { color: var(--muted); }
+  .rb-step { color: var(--orange); font-weight: 700; }
+  .rb-ev   { color: var(--orange); }
+  .rb-thought {
+    color: var(--muted); font-size: 11px;
+    max-height: 60px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word; line-height: 1.5;
+    scrollbar-width: thin;
+  }
+
+  /* ── ClickHouse ── */
+  .ch-wrap { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  #ch-list { flex: 1 1 0; overflow-y: auto; }
+  .ch-row {
+    padding: 6px 14px; border-bottom: 1px solid #21262d;
+    display: grid; grid-template-columns: 52px 36px 90px 1fr;
+    gap: 6px; align-items: start;
+  }
+  .ch-row:hover { background: #1c2128; }
+  .ch-ts    { color: var(--muted); font-size: 10px; padding-top: 2px; }
+  .ch-step  { color: var(--blue); text-align: center; padding-top: 2px; }
+  .ch-dec   { font-size: 10px; padding-top: 2px; }
+  .ch-dec.DONE              { color: var(--green); }
+  .ch-dec.TRIGGER_ROLLBACK  { color: var(--orange); font-weight: 700; }
+  .ch-dec.EVALUATING        { color: var(--purple); }
+  .ch-dec.CONTINUE          { color: var(--blue); }
+  .ch-dec.MAX_STEPS         { color: var(--red); }
+  /* thought cell: scrollable */
+  .ch-thought {
+    font-size: 10px; color: var(--muted); line-height: 1.5;
+    max-height: 56px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+    scrollbar-width: thin;
+  }
+  .ch-head { background: var(--surface); position: sticky; top: 0; z-index: 1;
+             border-bottom: 1px solid var(--border) !important; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Animations ── */
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .pulse { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+  .step-row { animation: fadeIn .2s ease; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">GitAgent <span>/ live dashboard</span></div>
+  <div id="status-pill">⬤ connecting…</div>
+</header>
+
+<div class="body">
+
+  <!-- LEFT -->
+  <div class="left">
+
+    <!-- Latest thought -->
+    <div class="thought-wrap">
+      <div class="sec-head">
+        <span class="dot" style="background:var(--purple)"></span>
+        Latest Agent Thought
+      </div>
+      <div id="thought-box">Waiting for agent to start…</div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <div class="tab active" data-tab="steps">Step Trace</div>
+      <div class="tab"        data-tab="summary">AI Summary</div>
+    </div>
+
+    <!-- Tab panels -->
+    <div class="tab-panels">
+
+      <!-- Step trace -->
+      <div class="tab-panel active" id="tab-steps">
+        <div class="step-row tbl-head">
+          <span class="col-ts">Time</span>
+          <span class="col-step">Step</span>
+          <span class="col-ev">Event</span>
+          <span class="col-ec">Exit</span>
+          <span class="col-thought">Thought</span>
+        </div>
+        <div class="no-data" id="steps-empty">No steps yet</div>
+      </div>
+
+      <!-- AI Summary -->
+      <div class="tab-panel" id="tab-summary">
+        <div id="summary-body" class="placeholder">
+Click "Generate Summary" to get an AI explanation of what happened each step.
+        </div>
+        <div id="summary-footer">
+          <button id="summarize-btn" onclick="generateSummary()">Generate Summary</button>
+          <span id="summary-status" style="margin-left:10px;color:var(--muted);font-size:11px"></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+
+    <!-- Rollback events -->
+    <div class="rb-wrap">
+      <div class="sec-head">
+        <span class="dot" style="background:var(--orange)"></span>
+        Rollback Events
+      </div>
+      <div id="rollback-list">
+        <div class="no-data">No rollbacks yet</div>
+      </div>
+    </div>
+
+    <!-- ClickHouse -->
+    <div class="ch-wrap">
+      <div class="sec-head">
+        <span class="dot" style="background:var(--green)"></span>
+        ClickHouse Telemetry
+        <span id="ch-badge" style="margin-left:auto;font-size:10px;color:var(--muted)"></span>
+      </div>
+      <div id="ch-list">
+        <div class="ch-row ch-head">
+          <span class="ch-ts">Time</span>
+          <span class="ch-step">#</span>
+          <span class="ch-dec">Decision</span>
+          <span class="ch-thought">Thought</span>
+        </div>
+        <div class="no-data" id="ch-empty">Loading…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── utils ──────────────────────────────────────────────────────────
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const ts  = iso => iso ? iso.slice(11,19) : '';
+const statusColor = l => ({
+  success:'var(--green)', running:'var(--blue)',
+  rollback:'var(--orange)', stopped:'var(--red)', idle:'var(--muted)'
+}[l] || 'var(--muted)');
+
+// ── tabs ───────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── render state ──────────────────────────────────────────────────
+function render(data) {
+  // status pill
+  const s = data.status || {};
+  const pill = document.getElementById('status-pill');
+  pill.textContent = s.text || '…';
+  pill.style.color = statusColor(s.label);
+  pill.style.borderColor = statusColor(s.label);
+
+  // thought
+  const tb = document.getElementById('thought-box');
+  tb.textContent = data.latest_thought || 'Waiting for agent…';
+  tb.className = s.label === 'running' ? 'thinking pulse' : '';
+
+  // step trace
+  const panel  = document.getElementById('tab-steps');
+  const empty  = document.getElementById('steps-empty');
+  const events = (data.events || []).slice().reverse();
+  if (events.length) {
+    if (empty) empty.remove();
+    // keep sticky header, rebuild rows
+    const header = panel.querySelector('.tbl-head');
+    panel.innerHTML = '';
+    if (header) panel.appendChild(header);
+    events.forEach(e => {
+      const isRb = (e.event || '').startsWith('rollback');
+      const isOk = e.event === 'success';
+      const ec   = e.last_exit_code;
+      const row  = document.createElement('div');
+      row.className = 'step-row' + (isRb ? ' is-rollback' : '') + (isOk ? ' is-success' : '');
+      row.innerHTML = `
+        <span class="col-ts">${esc(ts(e.timestamp))}</span>
+        <span class="col-step">#${esc(e.step_count)}</span>
+        <span class="col-ev ev">${esc(e.event||'')}</span>
+        <span class="col-ec ${ec===0?'ec-ok':'ec-bad'}">${ec!=null?ec:'-'}</span>
+        <div  class="col-thought">${esc(e.current_thought||'')}</div>`;
+      panel.appendChild(row);
+    });
+  }
+
+  // rollbacks
+  const rbList = document.getElementById('rollback-list');
+  const rbs    = (data.rollbacks || []).slice().reverse();
+  rbList.innerHTML = rbs.length
+    ? rbs.map(e => `
+        <div class="rb-item">
+          <div class="rb-meta">
+            <span class="rb-ts">${esc(ts(e.timestamp))}</span>
+            <span class="rb-step">step ${esc(e.step_count)}</span>
+            <span class="rb-ev">${esc(e.event)}</span>
+          </div>
+          <div class="rb-thought">${esc(e.current_thought||'')}</div>
+        </div>`).join('')
+    : '<div class="no-data">No rollbacks yet</div>';
+}
+
+// ── ClickHouse polling ─────────────────────────────────────────────
+function refreshClickHouse() {
+  fetch('/api/clickhouse').then(r => r.json()).then(data => {
+    const rows   = data.rows || [];
+    const list   = document.getElementById('ch-list');
+    const badge  = document.getElementById('ch-badge');
+    const header = list.querySelector('.ch-head');
+    badge.textContent = rows.length ? `${rows.length} rows` : '';
+
+    if (rows[0]?.error) {
+      list.innerHTML = `<div class="no-data" style="color:var(--red)">${esc(rows[0].error)}</div>`;
+      return;
+    }
+    if (!rows.length) { list.innerHTML = '<div class="no-data">No rows yet</div>'; return; }
+
+    list.innerHTML = '';
+    if (header) list.appendChild(header);
+    else list.innerHTML = `<div class="ch-row ch-head">
+      <span class="ch-ts">Time</span><span class="ch-step">#</span>
+      <span class="ch-dec">Decision</span><span class="ch-thought">Thought</span></div>`;
+
+    rows.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'ch-row';
+      row.innerHTML = `
+        <span class="ch-ts">${esc(r.timestamp.slice(11,19))}</span>
+        <span class="ch-step">#${esc(r.step_count)}</span>
+        <span class="ch-dec ${esc(r.decision)}">${esc(r.decision)}</span>
+        <div  class="ch-thought">${esc(r.thought)}</div>`;
+      list.appendChild(row);
+    });
+  }).catch(() => {});
+}
+
+// ── AI summary ─────────────────────────────────────────────────────
+async function generateSummary() {
+  const btn    = document.getElementById('summarize-btn');
+  const body   = document.getElementById('summary-body');
+  const status = document.getElementById('summary-status');
+  btn.disabled = true;
+  status.textContent = 'Generating…';
+  body.className = 'placeholder';
+  body.textContent = '';
+
+  try {
+    const res  = await fetch('/api/summary');
+    const data = await res.json();
+    body.className = '';
+    body.textContent = data.summary || 'No summary returned.';
+    status.textContent = '';
+  } catch(e) {
+    body.textContent = 'Error generating summary.';
+    status.textContent = '';
+  }
+  btn.disabled = false;
+}
+
+// ── SSE ────────────────────────────────────────────────────────────
+function connect() {
+  const es = new EventSource('/api/stream');
+  es.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.heartbeat) return;
+      render(d);
+    } catch(_) {}
+  };
+  es.onerror = () => {
+    document.getElementById('status-pill').textContent = '⬤ reconnecting…';
+    es.close();
+    setTimeout(connect, 3000);
+  };
+}
+
+// ── boot ───────────────────────────────────────────────────────────
+fetch('/api/state').then(r => r.json()).then(render).catch(() => {});
+connect();
+setInterval(refreshClickHouse, 3000);
+refreshClickHouse();
+</script>
+</body>
+</html>
